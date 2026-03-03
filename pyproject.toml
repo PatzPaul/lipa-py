@@ -1,0 +1,45 @@
+[project]
+name = "lipa-py"
+version = "0.1.0"
+description = "A modern, async Python package for integrating Tanzanian Mobile Network Operators and Gateways (M-Pesa, Selcom, Safaricom Daraja)."
+readme = "README.md"
+authors = [
+    { name = "patzpaull", email = "pathefister@gmail.com" }
+]
+requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["pypay", "m-pesa", "safaricom", "daraja", "selcom", "tanzania", "kenya", "payments", "fastapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Framework :: Pydantic :: 2",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Financial :: Point-Of-Sale"
+]
+dependencies = [
+    "cryptography>=46.0.5",
+    "fastapi>=0.133.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "xmltodict>=1.0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/patzpaull/lipa-py"
+Repository = "https://github.com/patzpaull/lipa-py"
+"Bug Tracker" = "https://github.com/patzpaull/lipa-py/issues"
+
+[build-system]
+requires = ["uv_build>=0.10.6,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "respx>=0.22.0",
+]
