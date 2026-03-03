@@ -1,4 +1,4 @@
-# lipa-py
+#  <div align="center">          Lipa-py </div>
 
 <div align="center">
   <h3>The Ultimate Assisant for Payments in Tanzania.</h3>
