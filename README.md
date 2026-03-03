@@ -1,33 +1,92 @@
-#  <div align="center">          Lipa-py </div>
-
 <div align="center">
-  <h3>The Ultimate Assisant for Payments in Tanzania.</h3>
-  <p>A modern, strictly typed, async-first package designed to integrate Tanzanian Mobile Network Operators (Vodacom M-Pesa, Tigo Pesa, Airtel Money) and Gateways (Selcom, TIPS) seamlessly into Python backend applications.</p>
+  <h1>LIPA-PY</h1>
+  <p><em>Empowering Seamless Payments Across East Africa</em></p>
+
+  <p>
+    <img src="https://img.shields.io/github/last-commit/PatzPaul/lipa-py/main?color=blue&style=flat-square" alt="last commit">
+    <img src="https://img.shields.io/github/languages/top/PatzPaul/lipa-py?color=blue&style=flat-square" alt="python 100%">
+    <img src="https://img.shields.io/github/languages/count/PatzPaul/lipa-py?color=blue&style=flat-square" alt="languages 1">
+  </p>
+
+  <p><em>Built with the tools and technologies:</em></p>
+  <p>
+    <img src="https://img.shields.io/badge/Markdown-000000?style=flat-square&logo=markdown&logoColor=white" alt="Markdown">
+    <img src="https://img.shields.io/badge/TOML-8B4513?style=flat-square&logo=toml&logoColor=white" alt="TOML">
+    <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
+    <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+    <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=github-actions&logoColor=white" alt="GitHub Actions">
+    <img src="https://img.shields.io/badge/uv-DE5FE9?style=flat-square&logo=python&logoColor=white" alt="uv">
+    <img src="https://img.shields.io/badge/Pydantic-E92063?style=flat-square&logo=pydantic&logoColor=white" alt="Pydantic">
+  </p>
 </div>
 
 ---
 
-##  Features
+## Table of Contents
 
-*   **Unified Orchestrator**: Write one simple abstract `UnifiedPaymentRequest` and let `lipa-py` route it perfectly based on phone prefixes or your configured fallback gateways (e.g., automatically routing Vodacom numbers to M-Pesa, and Airtel numbers to Selcom).
-*   **Fully Async**: Built from the ground up on `httpx` async clients to keep your API responsive without blocking requests.
-*   **100% Type Safe**: Powered by Pydantic V2. Absolutely no raw `dicts` returned. Everything is perfectly schema'd for your IDE intellisense.
-*   **Batteries-Included Webhooks**: Ships with pre-configured, dependency-injectable FastAPI routers specifically crafted to respond to MNO Webhooks with an immediate `HTTP 200` while pushing your database logic correctly into Background Tasks.
-*   **Strict Security**: Implements all vendor-specific cryptography natively. No struggling with RSA Public Keys. We handle the math; you handle the business.
+- [Overview](#overview)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Usage](#usage)
+- [Testing & Requirements](#testing--requirements)
+- [Contributing](#contributing)
 
-## Installation
+---
 
-```bash
-# Using uv (Recommended)
-uv add lipa-py
+## Overview
 
-# Or pip
-pip install lipa-py
-```
+`lipa-py` is a modern, asynchronous Python library that simplifies integrating East African mobile money services such as M-Pesa, Selcom, Safaricom Daraja, TIPS, Airtel Money, and Tigo Pesa. It provides a unified, type-safe interface for payment processing, webhook handling, and secure transaction management.
 
-## Quick Start
+**Why lipa-py?**
 
-### 1. The Unified Payment Interface (Recommended)
+This project aims to streamline mobile money integrations, enabling developers to build scalable, reliable payment solutions within the broader financial ecosystem. The core features include:
+
+- 🧩 **Puzzle Piece**: Unified API for multiple mobile money providers, abstracting provider-specific details.
+- 🚀 **Rocket**: Asynchronous webhooks with background processing for real-time notifications.
+- 🔒 **Lock**: Cryptographic functions ensuring secure communication and request integrity.
+- 📊 **Bar Chart**: Strong type safety with schemas and static analysis support.
+- ⚙️ **Gear**: Automated CI workflows to maintain code quality and stability.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+This project requires the following dependencies:
+
+- **Programming Language:** Python
+- **Package Manager:** uv
+
+### Installation
+
+Build `lipa-py` from the source and install dependencies:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/PatzPaul/lipa-py.git
+   ```
+
+2. **Navigate to the project directory:**
+   ```bash
+   cd lipa-py
+   ```
+
+3. **Install the dependencies:**
+
+   **Using [uv](https://docs.astral.sh/uv/):**
+   ```bash
+   uv sync --all-extras --dev
+   ```
+
+### Usage
+
+Run the project with:
+
+**Using [uv](https://docs.astral.sh/uv/):**
+
+#### 1. The Unified Payment Interface (Recommended)
 
 This is the fastest way to accept payments without caring about the underlying MNO.
 
