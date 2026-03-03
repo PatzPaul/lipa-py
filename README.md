@@ -42,11 +42,11 @@
 
 This project aims to streamline mobile money integrations, enabling developers to build scalable, reliable payment solutions within the broader financial ecosystem. The core features include:
 
-- 🧩 **Puzzle Piece**: Unified API for multiple mobile money providers, abstracting provider-specific details.
-- 🚀 **Rocket**: Asynchronous webhooks with background processing for real-time notifications.
-- 🔒 **Lock**: Cryptographic functions ensuring secure communication and request integrity.
-- 📊 **Bar Chart**: Strong type safety with schemas and static analysis support.
-- ⚙️ **Gear**: Automated CI workflows to maintain code quality and stability.
+- Unified API for multiple mobile money providers, abstracting provider-specific details.
+- Asynchronous webhooks with background processing for real-time notifications.
+- Cryptographic functions ensuring secure communication and request integrity.
+- Strong type safety with schemas and static analysis support.
+- Automated CI workflows to maintain code quality and stability.
 
 ---
 
@@ -181,7 +181,7 @@ asyncio.run(mpesa_only())
 
 ### 3. FastAPI Webhook Integration
 
-Handling asynchronous webhooks correctly in Africa is difficult due to MNO timeouts. We provide native FastAPI routers that handle the required response codes instantly while delegating your logic to the background.
+Handling asynchronous webhooks correctly is difficult due to MNO timeouts. We provide native FastAPI routers that handle the required response codes instantly while delegating your logic to the background.
 
 ```python
 from fastapi import FastAPI
@@ -206,7 +206,7 @@ Your webhook is now live at `POST /payments/mpesa/webhook`.
 
 ## Testing & Requirements
 
-Because `lipa-py` interacts with strict African MNOs and Gateways, there are some hard requirements before you can successfully make a test API call:
+Because `lipa-py` interacts with strict MNOs and Gateways, there are some hard requirements before you can successfully make a test API call:
 
 ### 1. Vodacom M-Pesa Requirements
 To use the M-Pesa client, you cannot just use dummy strings. You must have:
