@@ -1,14 +1,14 @@
 import httpx
 import time
 from typing import Optional, Dict
-from dataclasses import dataclass
 
+from lipa_py._base import Environment
 from .crypto import generate_password, generate_timestamp, generate_auth_header
 from .schemas import SafaricomSTKPushRequest, SafaricomSTKPushResponse, SafaricomAuthResponse
 
-@dataclass
-class Environment:
-    base_url: str
+class SafaricomError(Exception):
+    """Base exception for Safaricom Daraja API errors"""
+    pass
 
 SANDBOX = Environment("https://sandbox.safaricom.co.ke")
 LIVE = Environment("https://api.safaricom.co.ke")
@@ -23,15 +23,16 @@ class SafaricomClient:
         consumer_secret: str,
         passkey: str,
         shortcode: str,
-        environment: str = "sandbox"
+        environment: str = "sandbox",
+        timeout: float = 30.0
     ):
         self.consumer_key = consumer_key
         self.consumer_secret = consumer_secret
         self.passkey = passkey
         self.shortcode = shortcode
-        
+
         self.env = SANDBOX if environment.lower() == "sandbox" else LIVE
-        self.client = httpx.AsyncClient(base_url=self.env.base_url)
+        self.client = httpx.AsyncClient(base_url=self.env.base_url, timeout=httpx.Timeout(timeout))
         
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
@@ -101,6 +102,6 @@ class SafaricomClient:
         response = await self.client.post("/mpesa/stkpush/v1/processrequest", json=payload, headers=headers)
         
         if response.status_code != 200:
-            raise Exception(f"Safaricom STK Push failed: {response.text}")
+            raise SafaricomError(f"Safaricom STK Push failed: {response.text}")
             
         return SafaricomSTKPushResponse(**response.json())

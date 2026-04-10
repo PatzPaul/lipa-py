@@ -1,13 +1,13 @@
 import httpx
 import time
 from typing import Optional, Dict
-from dataclasses import dataclass
 
+from lipa_py._base import Environment
 from .schemas import TigoSTKPushRequest, TigoSTKPushResponse
 
-@dataclass
-class Environment:
-    base_url: str
+class TigoError(Exception):
+    """Base exception for Tigo Pesa API errors"""
+    pass
 
 SANDBOX = Environment("https://securesandbox.tigo.com/v1/tigo/payment-auth")
 LIVE = Environment("https://secure.tigo.com/v1/tigo/payment-auth")
@@ -22,14 +22,15 @@ class TigoClient:
         client_id: str,
         client_secret: str,
         biller_code: str,
-        environment: str = "sandbox"
+        environment: str = "sandbox",
+        timeout: float = 30.0
     ):
         self.client_id = client_id
         self.client_secret = client_secret
         self.biller_code = biller_code
-        
+
         self.env = SANDBOX if environment.lower() == "sandbox" else LIVE
-        self.client = httpx.AsyncClient(base_url=self.env.base_url)
+        self.client = httpx.AsyncClient(base_url=self.env.base_url, timeout=httpx.Timeout(timeout))
         
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
@@ -56,7 +57,7 @@ class TigoClient:
         response = await self.client.post("/oauth/generate/accesstoken", data=data)
         
         if response.status_code != 200:
-             raise Exception("Failed to authenticate with Tigo")
+            raise TigoError(f"Failed to authenticate with Tigo: {response.text}")
              
         # Mock logic
         self._access_token = response.json().get("access_token", "mock_token")
@@ -90,6 +91,6 @@ class TigoClient:
         response = await self.client.post("/authorize/payment", json=payload, headers=headers)
         
         if response.status_code not in (200, 201, 202):
-            raise Exception(f"Tigo STK Push failed: {response.text}")
+            raise TigoError(f"Tigo STK Push failed: {response.text}")
             
         return TigoSTKPushResponse(**response.json())
