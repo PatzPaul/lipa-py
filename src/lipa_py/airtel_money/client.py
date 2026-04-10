@@ -1,13 +1,13 @@
 import httpx
 import time
 from typing import Optional, Dict
-from dataclasses import dataclass
 
+from lipa_py._base import Environment
 from .schemas import AirtelSTKPushRequest, AirtelSTKPushResponse
 
-@dataclass
-class Environment:
-    base_url: str
+class AirtelError(Exception):
+    """Base exception for Airtel Money API errors"""
+    pass
 
 SANDBOX = Environment("https://openapiuat.airtel.africa")
 LIVE = Environment("https://openapi.airtel.africa")
@@ -20,13 +20,14 @@ class AirtelClient:
         self,
         client_id: str,
         client_secret: str,
-        environment: str = "sandbox"
+        environment: str = "sandbox",
+        timeout: float = 30.0
     ):
         self.client_id = client_id
         self.client_secret = client_secret
-        
+
         self.env = SANDBOX if environment.lower() == "sandbox" else LIVE
-        self.client = httpx.AsyncClient(base_url=self.env.base_url)
+        self.client = httpx.AsyncClient(base_url=self.env.base_url, timeout=httpx.Timeout(timeout))
         
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
@@ -51,9 +52,9 @@ class AirtelClient:
         }
         
         response = await self.client.post("/auth/oauth2/token", json=data)
-        
+
         if response.status_code != 200:
-             raise Exception("Failed to authenticate with Airtel")
+            raise AirtelError(f"Failed to authenticate with Airtel: {response.text}")
              
         # Mock logic
         self._access_token = response.json().get("access_token", "mock_token")
@@ -76,11 +77,12 @@ class AirtelClient:
         """
         headers = await self._get_auth_headers()
         
+        normalized_phone = request.phone_number.lstrip("+").replace(" ", "")
         payload = {
             "subscriber": {
                 "country": request.customer_country,
                 "currency": "TZS",
-                "msisdn": int(request.phone_number)
+                "msisdn": int(normalized_phone)
             },
             "transaction": {
                 "amount": request.amount,
@@ -94,6 +96,6 @@ class AirtelClient:
         response = await self.client.post("/merchant/v1/payments/", json=payload, headers=headers)
         
         if response.status_code not in (200, 201, 202):
-            raise Exception(f"Airtel STK Push failed: {response.text}")
+            raise AirtelError(f"Airtel STK Push failed: {response.text}")
             
         return AirtelSTKPushResponse(**response.json())
