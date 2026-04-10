@@ -8,18 +8,23 @@ class SelcomError(Exception):
     pass
 
 class SelcomClient:
-    def __init__(self, vendor_id: str, api_key: str, api_secret: str, environment: str = "sandbox"):
+    SANDBOX_URL = "https://apigwtest.selcommobile.com/v1"
+    LIVE_URL = "https://apigw.selcommobile.com/v1"
+
+    def __init__(self, vendor_id: str, api_key: str, api_secret: str, environment: str = "sandbox", base_url: str = None, timeout: float = 30.0):
         self.vendor_id = vendor_id
         self.api_key = api_key
         self.api_secret = api_secret
         self.environment = environment
-        
-        if environment == "sandbox":
-            self.base_url = "https://apigw.selcommobile.com/v1"
+
+        if base_url:
+            self.base_url = base_url
+        elif environment == "sandbox":
+            self.base_url = self.SANDBOX_URL
         else:
-            self.base_url = "https://apigw.selcommobile.com/v1" # Need correct prod URL when going live
-            
-        self.client = httpx.AsyncClient(base_url=self.base_url)
+            self.base_url = self.LIVE_URL
+
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(timeout))
 
     def _get_headers(self) -> dict:
         """
