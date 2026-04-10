@@ -1,6 +1,6 @@
 [project]
 name = "lipa-py"
-version = "0.1.2"
+version = "0.1.3"
 description = "A modern, async Python package for integrating Tanzanian Mobile Network Operators and Gateways (M-Pesa, Selcom, Safaricom Daraja)."
 readme = "README.md"
 authors = [

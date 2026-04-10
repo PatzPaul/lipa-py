@@ -35,7 +35,7 @@ from lipa_py.tigo_pesa.schemas import TigoSTKPushRequest, TigoSTKPushResponse, T
 from lipa_py.tips.client import TIPSClient, TIPSError
 from lipa_py.tips.schemas import TIPSCheckoutRequest, TIPSCheckoutResponse, TIPSWebhookData
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __all__ = [
     # Unified
     "UnifiedPaymentClient",
