@@ -29,6 +29,7 @@
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
+  - [Error Handling](#3-error-handling)
 - [Testing & Requirements](#testing--requirements)
 - [Contributing](#contributing)
 
@@ -159,14 +160,15 @@ if __name__ == "__main__":
 
 ### 2. Using Specific MNO Clients Directly
 
-If you don't need the Orchestrator and want to talk to M-Pesa directly:
+All clients are importable from the top-level package. No need for sub-module paths.
 
 ```python
 import asyncio
-from lipa_py.mpesa import MPesaClient, STKPushRequest
+from lipa_py import MPesaClient, STKPushRequest, MpesaError
 
 async def mpesa_only():
-    async with MPesaClient(api_key="...", public_key="...") as mpesa:
+    # service_provider_code defaults to "000000" (sandbox); set your real code in production
+    async with MPesaClient(api_key="...", public_key="...", service_provider_code="123456") as mpesa:
         req = STKPushRequest(
             phone_number="255754000000",
             amount=5000,
@@ -179,7 +181,25 @@ async def mpesa_only():
 asyncio.run(mpesa_only())
 ```
 
-### 3. FastAPI Webhook Integration
+### 3. Error Handling
+
+Each provider has a typed exception class. Catch them specifically or together:
+
+```python
+from lipa_py import MpesaError, AirtelError, SafaricomError, TigoError, TIPSError, SelcomError
+
+try:
+    response = await client.request_payment(request)
+except MpesaError as e:
+    print(f"M-Pesa failed: {e}")
+except AirtelError as e:
+    print(f"Airtel failed: {e}")
+except ValueError as e:
+    # Raised when no provider is configured for the given phone number
+    print(f"Routing error: {e}")
+```
+
+### 4. FastAPI Webhook Integration
 
 Handling asynchronous webhooks correctly is difficult due to MNO timeouts. We provide native FastAPI routers that handle the required response codes instantly while delegating your logic to the background.
 
@@ -192,7 +212,7 @@ app = FastAPI()
 # 1. Write the logic you want to execute when a payment completes
 async def handle_successful_payment(data: MpesaWebhookData):
     # This runs safely in a BackgroundTask!
-    if data.input_ResultCode == "0": # 0 typically means success in M-Pesa 
+    if data.input_ResultCode == "0": # 0 typically means success in M-Pesa
         print(f"Payment of {data.input_TransactionID} succeeded!")
         # -> UPDATE YOUR DATABASE HERE <-
 
@@ -203,6 +223,33 @@ set_webhook_handler(handle_successful_payment)
 app.include_router(mpesa_router, prefix="/payments/mpesa")
 ```
 Your webhook is now live at `POST /payments/mpesa/webhook`.
+
+### 5. Typed Configuration (Optional)
+
+For IDE autocompletion and validation at config time, use the typed config models instead of plain dicts:
+
+```python
+from lipa_py import UnifiedPaymentClient, MpesaConfig, SafaricomConfig
+
+client = UnifiedPaymentClient({
+    "mpesa": MpesaConfig(
+        api_key="...",
+        public_key="...",
+        service_provider_code="123456",
+        environment="live",
+        timeout=30.0,
+    ),
+    "safaricom": SafaricomConfig(
+        consumer_key="...",
+        consumer_secret="...",
+        passkey="...",
+        shortcode="174379",
+        environment="live",
+    ),
+})
+```
+
+Plain dicts still work — both styles are accepted.
 
 ## Testing & Requirements
 
