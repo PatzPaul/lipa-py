@@ -1,4 +1,6 @@
 import httpx
+import time
+from typing import Optional
 
 from lipa_py.mpesa.crypto import encrypt_api_key
 from lipa_py.mpesa.schemas import STKPushRequest, MpesaAuthResponse, MpesaResponse
@@ -8,35 +10,46 @@ class MpesaError(Exception):
     pass
 
 class MPesaClient:
-    def __init__(self, api_key: str, public_key: str, environment: str = "sandbox"):
+    def __init__(self, api_key: str, public_key: str, service_provider_code: str = "000000", environment: str = "sandbox", timeout: float = 30.0):
         self.api_key = api_key
         self.public_key = public_key
+        self.service_provider_code = service_provider_code
         self.environment = environment
-        
+
         if environment == "sandbox":
             self.base_url = "https://openapi.m-pesa.com/sandbox"
         else:
             self.base_url = "https://openapi.m-pesa.com/openapi"
-            
-        self.client = httpx.AsyncClient(base_url=self.base_url)
+
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(timeout))
+
+        self._session_token: Optional[str] = None
+        self._session_expires_at: float = 0
 
     async def _get_session_token(self) -> str:
         """
         Encrypts the API key and retrieves a session token from Vodacom's API.
+        Caches the token for its lifetime to avoid a double roundtrip on every payment.
         """
+        if self._session_token and time.time() < self._session_expires_at:
+            return self._session_token
+
         encrypted_key = encrypt_api_key(self.api_key, self.public_key)
-        
+
         headers = {
             "Authorization": f"Bearer {encrypted_key}",
             "Accept": "application/json"
         }
-        
+
         try:
             response = await self.client.get("/ipg/v2/vodacomTZN/getSession/", headers=headers)
             response.raise_for_status()
-            
+
             auth_response = MpesaAuthResponse.model_validate(response.json())
-            return auth_response.output_SessionID
+            self._session_token = auth_response.output_SessionID
+            # Vodacom session tokens are valid for 30 minutes; refresh 60s early
+            self._session_expires_at = time.time() + (30 * 60) - 60
+            return self._session_token
         except httpx.HTTPStatusError as e:
             raise MpesaError(f"Failed to get session token: {e.response.text}") from e
         except Exception as e:
@@ -60,7 +73,7 @@ class MPesaClient:
             "input_CustomerMSISDN": data.phone_number,
             "input_Country": "TZN",
             "input_Currency": "TZS",
-            "input_ServiceProviderCode": "000000",
+            "input_ServiceProviderCode": self.service_provider_code,
             "input_TransactionReference": data.reference,
             "input_ThirdPartyConversationID": data.third_party_conversation_id,
             "input_PurchasedItemsDesc": "Payment via STK push"
