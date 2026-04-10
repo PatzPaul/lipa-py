@@ -1,9 +1,9 @@
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 
 def generate_timestamp() -> str:
     """Generates the timestamp needed for Safaricom Daraja STK Push requests in format YYYYMMDDHHmmss"""
-    return datetime.now().strftime("%Y%m%d%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
 
 def generate_password(shortcode: str, passkey: str, timestamp: str) -> str:
     """
