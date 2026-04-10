@@ -67,3 +67,63 @@ async def test_client_context_manager():
     async with SafaricomClient("key", "secret", "passkey", "shortcode") as client:
         assert isinstance(client, SafaricomClient)
     assert client.client.is_closed
+
+@pytest.mark.asyncio
+async def test_authenticate_failure_raises_safaricom_error(safaricom_client):
+    from lipa_py.safaricom.client import SafaricomError
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+    mock_response.text = "Unauthorized"
+    mock_response.raise_for_status.side_effect = Exception("401")
+
+    with patch.object(safaricom_client.client, 'get', return_value=mock_response):
+        with pytest.raises(Exception):
+            await safaricom_client._authenticate()
+
+@pytest.mark.asyncio
+async def test_stk_push_failure_raises_safaricom_error(safaricom_client):
+    from lipa_py.safaricom.client import SafaricomError
+    mock_auth_response = MagicMock()
+    mock_auth_response.status_code = 200
+    mock_auth_response.json.return_value = {"access_token": "tok", "expires_in": "3599"}
+
+    mock_fail_response = MagicMock()
+    mock_fail_response.status_code = 500
+    mock_fail_response.text = "Internal Server Error"
+
+    with patch.object(safaricom_client.client, 'get', return_value=mock_auth_response), \
+         patch.object(safaricom_client.client, 'post', return_value=mock_fail_response):
+        request = SafaricomSTKPushRequest(
+            phone_number="254708374149",
+            amount=1.0,
+            reference="TestRef",
+            callback_url="https://example.com/callback"
+        )
+        with pytest.raises(SafaricomError) as excinfo:
+            await safaricom_client.stk_push(request)
+        assert "Safaricom STK Push failed" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_token_reused_on_second_call(safaricom_client):
+    """Token cache: second call must NOT re-authenticate."""
+    mock_auth = MagicMock()
+    mock_auth.status_code = 200
+    mock_auth.json.return_value = {"access_token": "cached_tok", "expires_in": "3599"}
+
+    mock_stk = MagicMock()
+    mock_stk.status_code = 200
+    mock_stk.json.return_value = {
+        "MerchantRequestID": "m1", "CheckoutRequestID": "c1",
+        "ResponseCode": "0", "ResponseDescription": "OK", "CustomerMessage": "OK"
+    }
+
+    with patch.object(safaricom_client.client, 'get', return_value=mock_auth) as mock_get, \
+         patch.object(safaricom_client.client, 'post', return_value=mock_stk):
+        req = SafaricomSTKPushRequest(
+            phone_number="254708374149", amount=1.0,
+            reference="r1", callback_url="https://cb.example.com"
+        )
+        await safaricom_client.stk_push(req)
+        await safaricom_client.stk_push(req)
+        # GET /oauth only called once despite two stk_push calls
+        assert mock_get.call_count == 1

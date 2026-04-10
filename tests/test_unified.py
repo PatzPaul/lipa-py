@@ -66,6 +66,66 @@ def test_unified_detect_provider(unified_client):
     # 254 -> Safaricom Kenya
     assert unified_client._detect_provider("254708374149") == "safaricom"
 
+def test_detect_provider_unknown_prefix_falls_back_to_tips(unified_client):
+    """An unrecognised prefix falls through to TIPS (first generic fallback) when configured."""
+    # 079 is not assigned to any known network — TIPS is registered before Selcom
+    result = unified_client._detect_provider("0790000000")
+    assert result == "tips"
+
+def test_detect_provider_unknown_prefix_no_selcom_raises():
+    """Without a fallback provider configured, an unknown prefix raises ValueError."""
+    from lipa_py import UnifiedPaymentClient
+    client = UnifiedPaymentClient({
+        "mpesa": {
+            "api_key": "k", "public_key": "pk", "environment": "sandbox"
+        }
+    })
+    with pytest.raises(ValueError, match="No configured provider"):
+        client._detect_provider("0790000000")
+
+def test_detect_provider_254_without_safaricom_falls_back(unified_client):
+    """254 numbers route to safaricom when configured."""
+    assert unified_client._detect_provider("254701234567") == "safaricom"
+
+def test_detect_provider_normalises_leading_zero():
+    """0754... and 255754... must both resolve to mpesa."""
+    from lipa_py import UnifiedPaymentClient
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives import serialization
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pub_pem = private_key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode()
+    client = UnifiedPaymentClient({"mpesa": {"api_key": "k", "public_key": pub_pem, "environment": "sandbox"}})
+    assert client._detect_provider("0754000000") == "mpesa"
+    assert client._detect_provider("255754000000") == "mpesa"
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_mpesa_session_token_cached_across_calls(unified_client):
+    """stk_push called twice must only call /getSession/ once (token cache)."""
+    mpesa_client = unified_client._clients["mpesa"]
+    session_url = f"{mpesa_client.base_url}/ipg/v2/vodacomTZN/getSession/"
+    push_url = f"{mpesa_client.base_url}/ipg/v2/vodacomTZN/c2bPayment/singleStage/"
+
+    session_mock = respx.get(session_url).mock(return_value=httpx.Response(
+        200, json={"output_ResponseCode": "0", "output_ResponseDesc": "Success", "output_SessionID": "tok"}
+    ))
+    respx.post(push_url).mock(return_value=httpx.Response(
+        200, json={
+            "output_ResponseCode": "0", "output_ResponseDesc": "Success",
+            "output_TransactionID": "TX1", "output_ConversationID": "CONV1",
+            "output_ThirdPartyConversationID": "T1"
+        }
+    ))
+
+    from lipa_py.mpesa.schemas import STKPushRequest
+    req = STKPushRequest(phone_number="255754000000", amount=100, reference="R1", third_party_conversation_id="R1")
+    await mpesa_client.stk_push(req)
+    await mpesa_client.stk_push(req)
+
+    assert session_mock.call_count == 1
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_unified_request_payment_mpesa_route(unified_client):

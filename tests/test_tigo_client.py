@@ -35,7 +35,7 @@ async def test_tigo_stk_push_success(tigo_client):
         "access_token": "mocked_token",
         "expires_in": "3599"
     }
-    
+
     mock_stk_response = MagicMock()
     mock_stk_response.status_code = 200
     mock_stk_response.json.return_value = {
@@ -50,8 +50,43 @@ async def test_tigo_stk_push_success(tigo_client):
             amount=1000.0,
             reference="TestRef"
         )
-        
+
         response = await tigo_client.stk_push(request)
-        
+
         assert response.ResponseCode == "0000"
         assert response.ReferenceID == "TIGO12345"
+
+@pytest.mark.asyncio
+async def test_tigo_authenticate_failure_raises_tigo_error(tigo_client):
+    from lipa_py.tigo_pesa.client import TigoError
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+    mock_response.text = "Unauthorized"
+
+    with patch.object(tigo_client.client, 'post', return_value=mock_response):
+        with pytest.raises(TigoError) as excinfo:
+            await tigo_client._authenticate()
+        assert "Failed to authenticate with Tigo" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_tigo_stk_push_failure_raises_tigo_error(tigo_client):
+    from lipa_py.tigo_pesa.client import TigoError
+    mock_auth = MagicMock()
+    mock_auth.status_code = 200
+    mock_auth.json.return_value = {"access_token": "tok", "expires_in": "3599"}
+
+    mock_fail = MagicMock()
+    mock_fail.status_code = 503
+    mock_fail.text = "Service Unavailable"
+
+    with patch.object(tigo_client.client, 'post', side_effect=[mock_auth, mock_fail]):
+        request = TigoSTKPushRequest(phone_number="255712345678", amount=500.0, reference="Ref")
+        with pytest.raises(TigoError) as excinfo:
+            await tigo_client.stk_push(request)
+        assert "Tigo STK Push failed" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_tigo_context_manager():
+    async with TigoClient("cid", "csecret", "bcode") as client:
+        assert isinstance(client, TigoClient)
+    assert client.client.is_closed
