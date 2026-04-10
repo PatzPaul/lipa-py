@@ -31,4 +31,4 @@ def generate_selcom_signature(
 
 def get_iso_timestamp() -> str:
     """Returns current timestamp in ISO 8601 format required by Selcom."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%zZ")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
