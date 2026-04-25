@@ -9,9 +9,9 @@ from lipa_py.mpesa.schemas import MpesaWebhookData
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Ensure each test starts with a clean handler registry."""
-    webhook_registry._handlers.clear()
+    webhook_registry.clear()
     yield
-    webhook_registry._handlers.clear()
+    webhook_registry.clear()
 
 
 @pytest.fixture

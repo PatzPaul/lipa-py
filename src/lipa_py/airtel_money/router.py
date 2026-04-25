@@ -1,28 +1,38 @@
-from fastapi import APIRouter, BackgroundTasks, Request
-from typing import Optional, Callable
+from fastapi import APIRouter, BackgroundTasks, Depends
+from typing import Callable, Awaitable, Dict, Any, Optional
+
+from lipa_py._base import WebhookRegistry
 from .schemas import AirtelWebhookData
 
-airtel_router = APIRouter()
-_webhook_handler: Optional[Callable] = None
+airtel_router = APIRouter(tags=["Airtel Money Webhooks"])
 
-def set_airtel_webhook_handler(handler: Callable):
-    """
-    Registers a background task handler for incoming Airtel results.
-    """
-    global _webhook_handler
-    _webhook_handler = handler
+airtel_webhook_registry: WebhookRegistry[AirtelWebhookData] = WebhookRegistry()
+
+
+def set_airtel_webhook_handler(
+    handler: Callable[[AirtelWebhookData], Awaitable[None]],
+    event_type: str = "default",
+) -> None:
+    """Register an async handler invoked with the parsed Airtel Money webhook payload."""
+    airtel_webhook_registry.set_handler(handler, event_type)
+
+
+def _get_handler_dep(event_type: str = "default"):
+    def dependency() -> Optional[Callable[[AirtelWebhookData], Awaitable[None]]]:
+        return airtel_webhook_registry.get_handler(event_type)
+    return dependency
+
 
 @airtel_router.post("/webhook")
 async def airtel_webhook(
     data: AirtelWebhookData,
     background_tasks: BackgroundTasks,
-    request: Request
-):
+    handler: Optional[Callable[[AirtelWebhookData], Awaitable[None]]] = Depends(_get_handler_dep("default")),
+) -> Dict[str, Any]:
     """
-    Handles Airtel Money webhooks.
-    Responds immediately with HTTP 200, while running your handler in a background task.
+    Airtel Money webhook. Responds 200 immediately and runs the handler
+    in a BackgroundTask.
     """
-    if _webhook_handler is not None:
-        background_tasks.add_task(_webhook_handler, data)
-        
+    if handler:
+        background_tasks.add_task(handler, data)
     return {"status": "success"}
