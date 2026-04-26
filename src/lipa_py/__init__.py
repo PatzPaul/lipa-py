@@ -44,7 +44,7 @@ from lipa_py.tips.client import TIPSClient, TIPSError
 from lipa_py.tips.schemas import TIPSCheckoutRequest, TIPSCheckoutResponse, TIPSWebhookData
 from lipa_py.tips.router import tips_router, set_tips_webhook_handler
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __all__ = [
     # Unified
     "UnifiedPaymentClient",
