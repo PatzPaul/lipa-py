@@ -25,6 +25,7 @@ def unified_client(mock_rsa_keys, mpesa_api_key, selcom_credentials):
             "consumer_secret": "test_safaricom_secret",
             "passkey": "test",
             "shortcode": "123",
+            "callback_url": "https://example.test/safaricom/webhook",
             "environment": "sandbox"
         },
         "tigo_pesa": {
@@ -125,6 +126,25 @@ async def test_mpesa_session_token_cached_across_calls(unified_client):
     await mpesa_client.stk_push(req)
 
     assert session_mock.call_count == 1
+
+@pytest.mark.asyncio
+async def test_safaricom_adapter_requires_callback_url(mock_rsa_keys, mpesa_api_key):
+    """The unified Safaricom adapter must raise if callback_url is not configured."""
+    _, public_pem = mock_rsa_keys
+    client = UnifiedPaymentClient({
+        "mpesa": {"api_key": mpesa_api_key, "public_key": public_pem, "environment": "sandbox"},
+        "safaricom": {
+            "consumer_key": "k", "consumer_secret": "s",
+            "passkey": "p", "shortcode": "123",
+            "environment": "sandbox",
+        },
+    })
+    request = UnifiedPaymentRequest(
+        phone_number="254708374149", amount=100, reference="TICKET"
+    )
+    with pytest.raises(ValueError, match="callback_url"):
+        await client.request_payment(request)
+
 
 @pytest.mark.asyncio
 @respx.mock

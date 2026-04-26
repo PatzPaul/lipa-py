@@ -114,6 +114,7 @@ async def accept_payment():
             "consumer_secret": "example_safaricom_secret",
             "passkey": "example_passkey",
             "shortcode": "174379",
+            "callback_url": "https://yourdomain.com/payments/safaricom/webhook",
             "environment": "sandbox"
         },
         "tigo_pesa": {
@@ -205,7 +206,7 @@ Handling asynchronous webhooks correctly is difficult due to MNO timeouts. We pr
 
 ```python
 from fastapi import FastAPI
-from lipa_py.mpesa import mpesa_router, set_webhook_handler, MpesaWebhookData
+from lipa_py import mpesa_router, set_webhook_handler, MpesaWebhookData
 
 app = FastAPI()
 
@@ -244,6 +245,7 @@ client = UnifiedPaymentClient({
         consumer_secret="...",
         passkey="...",
         shortcode="174379",
+        callback_url="https://yourdomain.com/payments/safaricom/webhook",
         environment="live",
     ),
 })

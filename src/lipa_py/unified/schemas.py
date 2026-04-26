@@ -24,6 +24,7 @@ class SafaricomConfig(BaseModel):
     consumer_secret: str
     passkey: str
     shortcode: str
+    callback_url: Optional[str] = None
     environment: str = "sandbox"
     timeout: float = 30.0
 

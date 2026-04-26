@@ -1,10 +1,14 @@
 import httpx
+import logging
 import time
 from typing import Optional, Dict
 
 from lipa_py._base import Environment
 from .crypto import generate_password, generate_timestamp, generate_auth_header
 from .schemas import SafaricomSTKPushRequest, SafaricomSTKPushResponse, SafaricomAuthResponse
+
+logger = logging.getLogger(__name__)
+
 
 class SafaricomError(Exception):
     """Base exception for Safaricom Daraja API errors"""
@@ -102,6 +106,8 @@ class SafaricomClient:
         response = await self.client.post("/mpesa/stkpush/v1/processrequest", json=payload, headers=headers)
         
         if response.status_code != 200:
+            logger.warning("Safaricom STK push failed: status=%s ref=%s body=%s",
+                           response.status_code, request.reference, response.text)
             raise SafaricomError(f"Safaricom STK Push failed: {response.text}")
-            
+
         return SafaricomSTKPushResponse(**response.json())

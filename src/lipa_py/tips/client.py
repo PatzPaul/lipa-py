@@ -1,8 +1,12 @@
 import httpx
+import logging
 from typing import Optional, Dict
 
 from lipa_py._base import Environment
 from .schemas import TIPSCheckoutRequest, TIPSCheckoutResponse
+
+logger = logging.getLogger(__name__)
+
 
 class TIPSError(Exception):
     """Base exception for TIPS (Tanzania Instant Payment System) API errors"""
@@ -68,6 +72,8 @@ class TIPSClient:
         response = await self.client.post("/api/v1/payments/", json=payload, headers=headers)
         
         if response.status_code not in (200, 201, 202):
+            logger.warning("TIPS checkout failed: status=%s ref=%s body=%s",
+                           response.status_code, request.reference, response.text)
             raise TIPSError(f"TIPS Checkout failed: {response.text}")
-            
+
         return TIPSCheckoutResponse(**response.json())

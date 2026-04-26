@@ -1,9 +1,13 @@
 import httpx
+import logging
 import time
 from typing import Optional, Dict
 
 from lipa_py._base import Environment
 from .schemas import TigoSTKPushRequest, TigoSTKPushResponse
+
+logger = logging.getLogger(__name__)
+
 
 class TigoError(Exception):
     """Base exception for Tigo Pesa API errors"""
@@ -57,6 +61,7 @@ class TigoClient:
         response = await self.client.post("/oauth/generate/accesstoken", data=data)
         
         if response.status_code != 200:
+            logger.warning("Tigo auth failed: status=%s body=%s", response.status_code, response.text)
             raise TigoError(f"Failed to authenticate with Tigo: {response.text}")
              
         # Mock logic
@@ -91,6 +96,8 @@ class TigoClient:
         response = await self.client.post("/authorize/payment", json=payload, headers=headers)
         
         if response.status_code not in (200, 201, 202):
+            logger.warning("Tigo STK push failed: status=%s ref=%s body=%s",
+                           response.status_code, request.reference, response.text)
             raise TigoError(f"Tigo STK Push failed: {response.text}")
-            
+
         return TigoSTKPushResponse(**response.json())

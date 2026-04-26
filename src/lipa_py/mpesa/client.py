@@ -1,9 +1,13 @@
 import httpx
+import logging
 import time
 from typing import Optional
 
 from lipa_py.mpesa.crypto import encrypt_api_key
 from lipa_py.mpesa.schemas import STKPushRequest, MpesaAuthResponse, MpesaResponse
+
+logger = logging.getLogger(__name__)
+
 
 class MpesaError(Exception):
     """Base exception for M-Pesa API errors"""
@@ -51,8 +55,10 @@ class MPesaClient:
             self._session_expires_at = time.time() + (30 * 60) - 60
             return self._session_token
         except httpx.HTTPStatusError as e:
+            logger.warning("M-Pesa auth failed: status=%s body=%s", e.response.status_code, e.response.text)
             raise MpesaError(f"Failed to get session token: {e.response.text}") from e
         except Exception as e:
+            logger.warning("M-Pesa auth raised unexpected error: %s", e)
             raise MpesaError(f"An unexpected error occurred during auth: {str(e)}") from e
 
     async def stk_push(self, data: STKPushRequest) -> MpesaResponse:
@@ -89,8 +95,11 @@ class MPesaClient:
             
             return MpesaResponse.model_validate(response.json())
         except httpx.HTTPStatusError as e:
+            logger.warning("M-Pesa STK push failed: status=%s ref=%s body=%s",
+                           e.response.status_code, data.reference, e.response.text)
             raise MpesaError(f"Failed to initiate STK push: {e.response.text}") from e
         except Exception as e:
+            logger.warning("M-Pesa STK push raised unexpected error: ref=%s err=%s", data.reference, e)
             raise MpesaError(f"An unexpected error occurred during STK push: {str(e)}") from e
 
     async def close(self):

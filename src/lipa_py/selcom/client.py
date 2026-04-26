@@ -1,7 +1,11 @@
 import httpx
+import logging
 
 from lipa_py.selcom.crypto import generate_selcom_signature, get_iso_timestamp
 from lipa_py.selcom.schemas import SelcomCheckoutRequest, SelcomCheckoutResponse
+
+logger = logging.getLogger(__name__)
+
 
 class SelcomError(Exception):
     """Base exception for Selcom API errors"""
@@ -71,8 +75,11 @@ class SelcomClient:
 
             return SelcomCheckoutResponse.model_validate(flattened)
         except httpx.HTTPStatusError as e:
+            logger.warning("Selcom checkout failed: status=%s order=%s body=%s",
+                           e.response.status_code, data.order_id, e.response.text)
             raise SelcomError(f"Selcom API request failed: {e.response.text}") from e
         except Exception as e:
+            logger.warning("Selcom checkout raised unexpected error: order=%s err=%s", data.order_id, e)
             raise SelcomError(f"An unexpected error occurred during Selcom checkout: {str(e)}") from e
 
     async def close(self):

@@ -1,9 +1,13 @@
 import httpx
+import logging
 import time
 from typing import Optional, Dict
 
 from lipa_py._base import Environment
 from .schemas import AirtelSTKPushRequest, AirtelSTKPushResponse
+
+logger = logging.getLogger(__name__)
+
 
 class AirtelError(Exception):
     """Base exception for Airtel Money API errors"""
@@ -54,6 +58,7 @@ class AirtelClient:
         response = await self.client.post("/auth/oauth2/token", json=data)
 
         if response.status_code != 200:
+            logger.warning("Airtel auth failed: status=%s body=%s", response.status_code, response.text)
             raise AirtelError(f"Failed to authenticate with Airtel: {response.text}")
              
         # Mock logic
@@ -96,6 +101,8 @@ class AirtelClient:
         response = await self.client.post("/merchant/v1/payments/", json=payload, headers=headers)
         
         if response.status_code not in (200, 201, 202):
+            logger.warning("Airtel STK push failed: status=%s ref=%s body=%s",
+                           response.status_code, request.reference, response.text)
             raise AirtelError(f"Airtel STK Push failed: {response.text}")
-            
+
         return AirtelSTKPushResponse(**response.json())

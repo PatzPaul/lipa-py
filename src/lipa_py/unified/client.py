@@ -38,7 +38,9 @@ class UnifiedPaymentClient:
             self._adapters["selcom"] = self._selcom_adapter
 
         if self._parsed_config.safaricom:
-            self._clients["safaricom"] = SafaricomClient(**self._parsed_config.safaricom.model_dump())
+            self._clients["safaricom"] = SafaricomClient(
+                **self._parsed_config.safaricom.model_dump(exclude={"callback_url"})
+            )
             self._adapters["safaricom"] = self._safaricom_adapter
 
         if self._parsed_config.tigo_pesa:
@@ -125,11 +127,16 @@ class UnifiedPaymentClient:
     async def _safaricom_adapter(self, request: UnifiedPaymentRequest) -> UnifiedPaymentResponse:
         client: SafaricomClient = self._clients["safaricom"]
         cfg = self._parsed_config.safaricom
+        if not cfg.callback_url:
+            raise ValueError(
+                "Safaricom requires a callback_url. Set it on SafaricomConfig "
+                "(this is the public URL Safaricom POSTs STK Push results to)."
+            )
         res = await client.stk_push(SafaricomSTKPushRequest(
             phone_number=request.phone_number,
             amount=request.amount,
             reference=request.reference,
-            callback_url=getattr(cfg, "callback_url", "https://example.com/webhook"),
+            callback_url=cfg.callback_url,
             description=request.description or "Payment",
         ))
         return UnifiedPaymentResponse(
