@@ -1,9 +1,10 @@
+import asyncio
 import httpx
 import logging
 import time
 from typing import Optional, Dict
 
-from lipa_py._base import Environment
+from lipa_py._base import BasePaymentClient, Environment
 from .schemas import TigoSTKPushRequest, TigoSTKPushResponse
 
 logger = logging.getLogger(__name__)
@@ -16,10 +17,9 @@ class TigoError(Exception):
 SANDBOX = Environment("https://securesandbox.tigo.com/v1/tigo/payment-auth")
 LIVE = Environment("https://secure.tigo.com/v1/tigo/payment-auth")
 
-class TigoClient:
+class TigoClient(BasePaymentClient):
     """
     Client for interacting with Tigo Pesa Secure APIs.
-    (Note: exact paths depend on version. This template focuses on basic auth patterns).
     """
     def __init__(
         self,
@@ -35,43 +35,40 @@ class TigoClient:
 
         self.env = SANDBOX if environment.lower() == "sandbox" else LIVE
         self.client = httpx.AsyncClient(base_url=self.env.base_url, timeout=httpx.Timeout(timeout))
-        
+
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
-        
-    async def __aenter__(self):
-        return self
+        self._token_lock = asyncio.Lock()
 
-    async def __aexit__(self, exc_type, exc, tb):
-        await self.close()
-        
-    async def close(self):
-        await self.client.aclose()
-        
     async def _authenticate(self) -> None:
-        """
-        Authenticates with Tigo and stores the access token temporarily.
-        """
         data = {
             "grant_type": "client_credentials",
             "client_id": self.client_id,
             "client_secret": self.client_secret
         }
-        
-        response = await self.client.post("/oauth/generate/accesstoken", data=data)
-        
-        if response.status_code != 200:
-            logger.warning("Tigo auth failed: status=%s body=%s", response.status_code, response.text)
-            raise TigoError(f"Failed to authenticate with Tigo: {response.text}")
-             
-        # Mock logic
-        self._access_token = response.json().get("access_token", "mock_token")
-        self._token_expires_at = time.time() + float(response.json().get("expires_in", 3600)) - 60
+
+        try:
+            response = await self.client.post("/oauth/generate/accesstoken", data=data)
+            response.raise_for_status()
+            body = response.json()
+            token = body.get("access_token")
+            if not token:
+                raise TigoError("Tigo auth response missing access_token")
+            self._access_token = token
+            self._token_expires_at = time.time() + float(body.get("expires_in", 3600)) - 60
+        except httpx.HTTPStatusError as e:
+            logger.warning("Tigo auth failed: status=%s body=%s", e.response.status_code, e.response.text)
+            raise TigoError(f"Failed to authenticate with Tigo: {e.response.text}") from e
+        except TigoError:
+            raise
+        except Exception as e:
+            logger.warning("Tigo auth raised unexpected error: %s", e)
+            raise TigoError(f"An unexpected error occurred during Tigo auth: {str(e)}") from e
 
     async def _get_auth_headers(self) -> Dict[str, str]:
-        if not self._access_token or time.time() >= self._token_expires_at:
-            await self._authenticate()
-            
+        async with self._token_lock:
+            if not self._access_token or time.time() >= self._token_expires_at:
+                await self._authenticate()
         return {
             "Authorization": f"Bearer {self._access_token}",
             "Content-Type": "application/json"
@@ -81,23 +78,26 @@ class TigoClient:
         """
         Initiate an STK Push to the user's phone.
         """
-        # Note: Depending on Tigo's implementation, you may need a separate path for Sandbox pushing.
-        headers = await self._get_auth_headers()
-        
-        payload = {
-            "CustomerMSISDN": request.phone_number,
-            "Amount": request.amount,
-            "ReferenceID": request.reference,
-            "BillerCode": self.biller_code,
-            "CustomerEmail": request.customer_email or "",
-        }
-        
-        # Example Endpoint Call for Tigo
-        response = await self.client.post("/authorize/payment", json=payload, headers=headers)
-        
-        if response.status_code not in (200, 201, 202):
-            logger.warning("Tigo STK push failed: status=%s ref=%s body=%s",
-                           response.status_code, request.reference, response.text)
-            raise TigoError(f"Tigo STK Push failed: {response.text}")
+        try:
+            headers = await self._get_auth_headers()
 
-        return TigoSTKPushResponse(**response.json())
+            payload = {
+                "CustomerMSISDN": request.phone_number,
+                "Amount": request.amount,
+                "ReferenceID": request.reference,
+                "BillerCode": self.biller_code,
+                "CustomerEmail": request.customer_email or "",
+            }
+
+            response = await self.client.post("/authorize/payment", json=payload, headers=headers)
+            response.raise_for_status()
+            return TigoSTKPushResponse(**response.json())
+        except httpx.HTTPStatusError as e:
+            logger.warning("Tigo STK push failed: status=%s ref=%s body=%s",
+                           e.response.status_code, request.reference, e.response.text)
+            raise TigoError(f"Tigo STK Push failed: {e.response.text}") from e
+        except TigoError:
+            raise
+        except Exception as e:
+            logger.warning("Tigo STK push raised unexpected error: ref=%s err=%s", request.reference, e)
+            raise TigoError(f"An unexpected error occurred during Tigo STK Push: {str(e)}") from e

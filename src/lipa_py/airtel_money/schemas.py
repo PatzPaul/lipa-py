@@ -1,17 +1,33 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
+
 class AirtelSTKPushRequest(BaseModel):
     phone_number: str
     amount: float
     reference: str
     customer_country: str = "TZ"
 
+
+class AirtelTransactionData(BaseModel):
+    id: Optional[str] = None
+    model_config = ConfigDict(extra="allow")
+
+
+class AirtelResponseData(BaseModel):
+    transaction: Optional[AirtelTransactionData] = None
+    model_config = ConfigDict(extra="allow")
+
+
+class AirtelResponseStatus(BaseModel):
+    success: Optional[bool] = None
+    model_config = ConfigDict(extra="allow")
+
+
 class AirtelSTKPushResponse(BaseModel):
-    status: dict
-    data: dict
-    
-    model_config = ConfigDict(extra='ignore')
+    status: AirtelResponseStatus
+    data: Optional[AirtelResponseData] = None
+    model_config = ConfigDict(extra="ignore")
 
 class AirtelWebhookData(BaseModel):
     """

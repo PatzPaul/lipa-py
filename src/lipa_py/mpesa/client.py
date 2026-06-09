@@ -1,8 +1,10 @@
+import asyncio
 import httpx
 import logging
 import time
 from typing import Optional
 
+from lipa_py._base import BasePaymentClient
 from lipa_py.mpesa.crypto import encrypt_api_key
 from lipa_py.mpesa.schemas import STKPushRequest, MpesaAuthResponse, MpesaResponse
 
@@ -13,7 +15,7 @@ class MpesaError(Exception):
     """Base exception for M-Pesa API errors"""
     pass
 
-class MPesaClient:
+class MPesaClient(BasePaymentClient):
     def __init__(self, api_key: str, public_key: str, service_provider_code: str = "000000", environment: str = "sandbox", timeout: float = 30.0):
         self.api_key = api_key
         self.public_key = public_key
@@ -29,37 +31,39 @@ class MPesaClient:
 
         self._session_token: Optional[str] = None
         self._session_expires_at: float = 0
+        self._token_lock = asyncio.Lock()
 
     async def _get_session_token(self) -> str:
         """
         Encrypts the API key and retrieves a session token from Vodacom's API.
         Caches the token for its lifetime to avoid a double roundtrip on every payment.
+        Lock prevents concurrent requests from each triggering a separate auth call.
         """
-        if self._session_token and time.time() < self._session_expires_at:
-            return self._session_token
+        async with self._token_lock:
+            if self._session_token and time.time() < self._session_expires_at:
+                return self._session_token
 
-        encrypted_key = encrypt_api_key(self.api_key, self.public_key)
+            encrypted_key = encrypt_api_key(self.api_key, self.public_key)
+            headers = {
+                "Authorization": f"Bearer {encrypted_key}",
+                "Accept": "application/json"
+            }
 
-        headers = {
-            "Authorization": f"Bearer {encrypted_key}",
-            "Accept": "application/json"
-        }
+            try:
+                response = await self.client.get("/ipg/v2/vodacomTZN/getSession/", headers=headers)
+                response.raise_for_status()
 
-        try:
-            response = await self.client.get("/ipg/v2/vodacomTZN/getSession/", headers=headers)
-            response.raise_for_status()
-
-            auth_response = MpesaAuthResponse.model_validate(response.json())
-            self._session_token = auth_response.output_SessionID
-            # Vodacom session tokens are valid for 30 minutes; refresh 60s early
-            self._session_expires_at = time.time() + (30 * 60) - 60
-            return self._session_token
-        except httpx.HTTPStatusError as e:
-            logger.warning("M-Pesa auth failed: status=%s body=%s", e.response.status_code, e.response.text)
-            raise MpesaError(f"Failed to get session token: {e.response.text}") from e
-        except Exception as e:
-            logger.warning("M-Pesa auth raised unexpected error: %s", e)
-            raise MpesaError(f"An unexpected error occurred during auth: {str(e)}") from e
+                auth_response = MpesaAuthResponse.model_validate(response.json())
+                self._session_token = auth_response.output_SessionID
+                # Vodacom session tokens are valid for 30 minutes; refresh 60s early
+                self._session_expires_at = time.time() + (30 * 60) - 60
+                return self._session_token
+            except httpx.HTTPStatusError as e:
+                logger.warning("M-Pesa auth failed: status=%s body=%s", e.response.status_code, e.response.text)
+                raise MpesaError(f"Failed to get session token: {e.response.text}") from e
+            except Exception as e:
+                logger.warning("M-Pesa auth raised unexpected error: %s", e)
+                raise MpesaError(f"An unexpected error occurred during auth: {str(e)}") from e
 
     async def stk_push(self, data: STKPushRequest) -> MpesaResponse:
         """
@@ -102,12 +106,3 @@ class MPesaClient:
             logger.warning("M-Pesa STK push raised unexpected error: ref=%s err=%s", data.reference, e)
             raise MpesaError(f"An unexpected error occurred during STK push: {str(e)}") from e
 
-    async def close(self):
-        """Clean up the async HTTP client"""
-        await self.client.aclose()
-        
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()

@@ -62,6 +62,7 @@ class UnifiedPaymentClient:
         Kenya: 254 prefix → Safaricom
         Falls back to TIPS then Selcom if configured.
         """
+        phone = phone.lstrip("+").replace(" ", "")
         if phone.startswith("0"):
             phone = "255" + phone[1:]
 
@@ -108,11 +109,14 @@ class UnifiedPaymentClient:
         )
 
     async def _selcom_adapter(self, request: UnifiedPaymentRequest) -> UnifiedPaymentResponse:
+        if not request.email:
+            raise ValueError(
+                "Selcom requires an email address. Set 'email' on UnifiedPaymentRequest."
+            )
         client: SelcomClient = self._clients["selcom"]
         res = await client.create_checkout(SelcomCheckoutRequest(
-            vendor=client.vendor_id,
             order_id=request.reference,
-            buyer_email=request.email or "guest@example.com",
+            buyer_email=request.email,
             buyer_name=request.name or "Guest User",
             buyer_phone=request.phone_number,
             amount=request.amount,
@@ -168,7 +172,7 @@ class UnifiedPaymentClient:
             amount=request.amount,
             reference=request.reference,
         ))
-        tx_id = res.data.get("transaction", {}).get("id", "UNKNOWN") if res.data else "UNKNOWN"
+        tx_id = (res.data.transaction.id if (res.data and res.data.transaction and res.data.transaction.id) else "UNKNOWN")
         return UnifiedPaymentResponse(
             provider="airtel_money",
             status="pending",

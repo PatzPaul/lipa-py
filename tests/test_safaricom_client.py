@@ -1,6 +1,13 @@
 import pytest
+import httpx
 from unittest.mock import patch, MagicMock
 from lipa_py.safaricom import SafaricomClient, SafaricomSTKPushRequest
+
+
+def _http_status_error(status_code: int, text: str) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://example.com")
+    response = httpx.Response(status_code, text=text, request=request)
+    return httpx.HTTPStatusError(text, request=request, response=response)
 
 @pytest.fixture
 def safaricom_client():
@@ -15,7 +22,7 @@ def safaricom_client():
 @pytest.mark.asyncio
 async def test_authenticate_success(safaricom_client):
     mock_response = MagicMock()
-    mock_response.status_code = 200
+    mock_response.raise_for_status.return_value = None
     mock_response.json.return_value = {
         "access_token": "mocked_token",
         "expires_in": "3599"
@@ -30,14 +37,14 @@ async def test_authenticate_success(safaricom_client):
 @pytest.mark.asyncio
 async def test_stk_push_success(safaricom_client):
     mock_auth_response = MagicMock()
-    mock_auth_response.status_code = 200
+    mock_auth_response.raise_for_status.return_value = None
     mock_auth_response.json.return_value = {
         "access_token": "mocked_token",
         "expires_in": "3599"
     }
-    
+
     mock_stk_response = MagicMock()
-    mock_stk_response.status_code = 200
+    mock_stk_response.raise_for_status.return_value = None
     mock_stk_response.json.return_value = {
         "MerchantRequestID": "29115-34620561-1",
         "CheckoutRequestID": "ws_CO_191220191020363925",
@@ -72,24 +79,22 @@ async def test_client_context_manager():
 async def test_authenticate_failure_raises_safaricom_error(safaricom_client):
     from lipa_py.safaricom.client import SafaricomError
     mock_response = MagicMock()
-    mock_response.status_code = 401
-    mock_response.text = "Unauthorized"
-    mock_response.raise_for_status.side_effect = Exception("401")
+    mock_response.raise_for_status.side_effect = _http_status_error(401, "Unauthorized")
 
     with patch.object(safaricom_client.client, 'get', return_value=mock_response):
-        with pytest.raises(Exception):
+        with pytest.raises(SafaricomError) as excinfo:
             await safaricom_client._authenticate()
+        assert "Safaricom authentication failed" in str(excinfo.value)
 
 @pytest.mark.asyncio
 async def test_stk_push_failure_raises_safaricom_error(safaricom_client):
     from lipa_py.safaricom.client import SafaricomError
     mock_auth_response = MagicMock()
-    mock_auth_response.status_code = 200
+    mock_auth_response.raise_for_status.return_value = None
     mock_auth_response.json.return_value = {"access_token": "tok", "expires_in": "3599"}
 
     mock_fail_response = MagicMock()
-    mock_fail_response.status_code = 500
-    mock_fail_response.text = "Internal Server Error"
+    mock_fail_response.raise_for_status.side_effect = _http_status_error(500, "Internal Server Error")
 
     with patch.object(safaricom_client.client, 'get', return_value=mock_auth_response), \
          patch.object(safaricom_client.client, 'post', return_value=mock_fail_response):
@@ -107,11 +112,11 @@ async def test_stk_push_failure_raises_safaricom_error(safaricom_client):
 async def test_token_reused_on_second_call(safaricom_client):
     """Token cache: second call must NOT re-authenticate."""
     mock_auth = MagicMock()
-    mock_auth.status_code = 200
+    mock_auth.raise_for_status.return_value = None
     mock_auth.json.return_value = {"access_token": "cached_tok", "expires_in": "3599"}
 
     mock_stk = MagicMock()
-    mock_stk.status_code = 200
+    mock_stk.raise_for_status.return_value = None
     mock_stk.json.return_value = {
         "MerchantRequestID": "m1", "CheckoutRequestID": "c1",
         "ResponseCode": "0", "ResponseDescription": "OK", "CustomerMessage": "OK"

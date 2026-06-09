@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 class SelcomCheckoutRequest(BaseModel):
-    vendor: str
     order_id: str
     buyer_email: str
     buyer_name: str

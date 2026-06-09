@@ -1,6 +1,9 @@
 from dataclasses import dataclass
-from typing import Callable, Awaitable, Dict, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Callable, Awaitable, Dict, Generic, Optional, TypeVar
 import inspect
+
+if TYPE_CHECKING:
+    import httpx
 
 
 @dataclass
@@ -37,3 +40,18 @@ class WebhookRegistry(Generic[T]):
 
     def clear(self) -> None:
         self._handlers.clear()
+
+
+class BasePaymentClient:
+    """Shared async lifecycle for all provider clients."""
+
+    client: "httpx.AsyncClient"
+
+    async def close(self) -> None:
+        await self.client.aclose()
+
+    async def __aenter__(self) -> "BasePaymentClient":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        await self.close()

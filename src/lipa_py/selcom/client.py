@@ -1,6 +1,7 @@
 import httpx
 import logging
 
+from lipa_py._base import BasePaymentClient
 from lipa_py.selcom.crypto import generate_selcom_signature, get_iso_timestamp
 from lipa_py.selcom.schemas import SelcomCheckoutRequest, SelcomCheckoutResponse
 
@@ -11,7 +12,7 @@ class SelcomError(Exception):
     """Base exception for Selcom API errors"""
     pass
 
-class SelcomClient:
+class SelcomClient(BasePaymentClient):
     SANDBOX_URL = "https://apigwtest.selcommobile.com/v1"
     LIVE_URL = "https://apigw.selcommobile.com/v1"
 
@@ -53,7 +54,7 @@ class SelcomClient:
         headers = self._get_headers()
         
         payload = data.model_dump()
-        payload["vendor"] = self.vendor_id
+        payload["vendor"] = self.vendor_id  # vendor_id is a client credential, not a request field
         
         try:
             response = await self.client.post(
@@ -82,12 +83,3 @@ class SelcomClient:
             logger.warning("Selcom checkout raised unexpected error: order=%s err=%s", data.order_id, e)
             raise SelcomError(f"An unexpected error occurred during Selcom checkout: {str(e)}") from e
 
-    async def close(self):
-        """Clean up the async HTTP client"""
-        await self.client.aclose()
-        
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()

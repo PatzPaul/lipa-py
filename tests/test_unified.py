@@ -182,3 +182,171 @@ async def test_unified_request_payment_mpesa_route(unified_client):
     assert unified_response.provider == "mpesa"
     assert unified_response.transaction_id == "CONV_ABC"
     assert unified_response.status == "pending"
+
+
+def test_detect_provider_plus_prefix(unified_client):
+    """+255754... and +254... must normalise correctly."""
+    assert unified_client._detect_provider("+255754000000") == "mpesa"
+    assert unified_client._detect_provider("+254708374149") == "safaricom"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unified_request_payment_selcom_route(unified_client):
+    """Selcom adapter translates UnifiedPaymentRequest to SelcomCheckoutRequest correctly."""
+    selcom_client = unified_client._clients["selcom"]
+    checkout_url = f"{selcom_client.base_url}/checkout/create-order"
+
+    respx.post(checkout_url).mock(return_value=httpx.Response(
+        200, json={
+            "result": "SUCCESS",
+            "message": "Order created",
+            "data": [{"order_id": "ORDER123", "payment_token": "TOK", "checkout_url": "https://pay.selcom.com/TOK"}]
+        }
+    ))
+
+    request = UnifiedPaymentRequest(
+        phone_number="0790000000",
+        amount=2000,
+        reference="ORDER123",
+        email="buyer@example.com",
+        name="Test Buyer",
+    )
+    response = await unified_client.request_payment(request, force_provider="selcom")
+
+    assert response.provider == "selcom"
+    assert response.transaction_id == "ORDER123"
+    assert response.status == "created"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unified_request_payment_safaricom_route(unified_client):
+    """Safaricom adapter translates UnifiedPaymentRequest and returns CheckoutRequestID."""
+    safaricom_client = unified_client._clients["safaricom"]
+    auth_url = f"{safaricom_client.env.base_url}/oauth/v1/generate"
+    stk_url = f"{safaricom_client.env.base_url}/mpesa/stkpush/v1/processrequest"
+
+    respx.get(url__startswith=auth_url).mock(return_value=httpx.Response(
+        200, json={"access_token": "sf_token", "expires_in": "3599"}
+    ))
+    respx.post(stk_url).mock(return_value=httpx.Response(
+        200, json={
+            "MerchantRequestID": "MR1",
+            "CheckoutRequestID": "ws_CO_123",
+            "ResponseCode": "0",
+            "ResponseDescription": "Success",
+            "CustomerMessage": "Success"
+        }
+    ))
+
+    request = UnifiedPaymentRequest(
+        phone_number="254708374149",
+        amount=100,
+        reference="TICKET1",
+    )
+    response = await unified_client.request_payment(request)
+
+    assert response.provider == "safaricom"
+    assert response.transaction_id == "ws_CO_123"
+    assert response.status == "pending"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unified_request_payment_tigo_route(unified_client):
+    """Tigo adapter translates UnifiedPaymentRequest and returns ReferenceID."""
+    tigo_client = unified_client._clients["tigo_pesa"]
+    auth_url = f"{tigo_client.env.base_url}/oauth/generate/accesstoken"
+    push_url = f"{tigo_client.env.base_url}/authorize/payment"
+
+    respx.post(auth_url).mock(return_value=httpx.Response(
+        200, json={"access_token": "tigo_tok", "expires_in": "3599"}
+    ))
+    respx.post(push_url).mock(return_value=httpx.Response(
+        200, json={
+            "ResponseCode": "0000",
+            "ResponseDescription": "Success",
+            "ReferenceID": "TIGO_REF_001"
+        }
+    ))
+
+    request = UnifiedPaymentRequest(
+        phone_number="0716000000",
+        amount=500,
+        reference="REF1",
+    )
+    response = await unified_client.request_payment(request)
+
+    assert response.provider == "tigo_pesa"
+    assert response.transaction_id == "TIGO_REF_001"
+    assert response.status == "pending"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unified_request_payment_airtel_route(unified_client):
+    """Airtel adapter translates UnifiedPaymentRequest and extracts transaction ID."""
+    airtel_client = unified_client._clients["airtel_money"]
+    auth_url = f"{airtel_client.env.base_url}/auth/oauth2/token"
+    push_url = f"{airtel_client.env.base_url}/merchant/v1/payments/"
+
+    respx.post(auth_url).mock(return_value=httpx.Response(
+        200, json={"access_token": "airtel_tok", "expires_in": "3599"}
+    ))
+    respx.post(push_url).mock(return_value=httpx.Response(
+        200, json={
+            "status": {"success": True},
+            "data": {"transaction": {"id": "AIRTEL_TX_001"}}
+        }
+    ))
+
+    request = UnifiedPaymentRequest(
+        phone_number="0786000000",
+        amount=750,
+        reference="AREF1",
+    )
+    response = await unified_client.request_payment(request)
+
+    assert response.provider == "airtel_money"
+    assert response.transaction_id == "AIRTEL_TX_001"
+    assert response.status == "pending"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_unified_request_payment_tips_route(unified_client):
+    """TIPS adapter translates UnifiedPaymentRequest and returns transaction_reference."""
+    tips_client = unified_client._clients["tips"]
+    push_url = f"{tips_client.env.base_url}/api/v1/payments/"
+
+    respx.post(push_url).mock(return_value=httpx.Response(
+        200, json={
+            "transaction_reference": "TIPS_REF_001",
+            "status": "APPROVED",
+            "message": "Transaction processed"
+        }
+    ))
+
+    request = UnifiedPaymentRequest(
+        phone_number="0790000000",
+        amount=1000,
+        reference="TREF1",
+    )
+    response = await unified_client.request_payment(request, force_provider="tips")
+
+    assert response.provider == "tips"
+    assert response.transaction_id == "TIPS_REF_001"
+    assert response.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_selcom_adapter_requires_email(unified_client):
+    """Selcom adapter must raise ValueError when email is absent."""
+    request = UnifiedPaymentRequest(
+        phone_number="0790000000",
+        amount=1000,
+        reference="REF1",
+    )
+    with pytest.raises(ValueError, match="email"):
+        await unified_client.request_payment(request, force_provider="selcom")

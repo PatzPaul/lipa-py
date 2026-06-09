@@ -3,6 +3,12 @@ import httpx
 from unittest.mock import patch, MagicMock
 from lipa_py.airtel_money import AirtelClient, AirtelSTKPushRequest
 
+
+def _http_status_error(status_code: int, text: str) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://example.com")
+    response = httpx.Response(status_code, text=text, request=request)
+    return httpx.HTTPStatusError(text, request=request, response=response)
+
 @pytest.fixture
 def airtel_client():
     return AirtelClient(
@@ -14,7 +20,7 @@ def airtel_client():
 @pytest.mark.asyncio
 async def test_airtel_authenticate_success(airtel_client):
     mock_response = MagicMock()
-    mock_response.status_code = 200
+    mock_response.raise_for_status.return_value = None
     mock_response.json.return_value = {
         "access_token": "mocked_airtel_token",
         "expires_in": "3599"
@@ -29,14 +35,14 @@ async def test_airtel_authenticate_success(airtel_client):
 @pytest.mark.asyncio
 async def test_airtel_stk_push_success(airtel_client):
     mock_auth_response = MagicMock()
-    mock_auth_response.status_code = 200
+    mock_auth_response.raise_for_status.return_value = None
     mock_auth_response.json.return_value = {
         "access_token": "mocked_token",
         "expires_in": "3599"
     }
-    
+
     mock_stk_response = MagicMock()
-    mock_stk_response.status_code = 200
+    mock_stk_response.raise_for_status.return_value = None
     mock_stk_response.json.return_value = {
         "status": {"success": True},
         "data": {"transaction": {"id": "AIRTEL12345"}}
@@ -48,8 +54,8 @@ async def test_airtel_stk_push_success(airtel_client):
             amount=500.0,
             reference="TestRef"
         )
-        
+
         response = await airtel_client.stk_push(request)
-        
-        assert response.status.get("success") is True
-        assert response.data.get("transaction").get("id") == "AIRTEL12345"
+
+        assert response.status.success is True
+        assert response.data.transaction.id == "AIRTEL12345"
